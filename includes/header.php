@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,7 +12,8 @@
         <?php endforeach; ?>
     <?php endif; ?>
 </head>
-<body>
+
+<body <?php echo isset($body_attributes) ? $body_attributes : ''; ?>>
     <header>
         <div class="logo">
             <img src="img/44.png" alt="SMOKED logo">
@@ -23,4 +25,3 @@
             <a href="admin.php">Admin</a>
         </nav>
     </header>
-

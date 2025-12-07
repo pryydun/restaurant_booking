@@ -46,10 +46,14 @@ include "includes/header.php";
         </p>
         
         <div class="actions">
-            <?php if ($date && $time): ?>
-                <a href="booking.php?date=<?php echo urlencode($date); ?>&time=<?php echo urlencode($time); ?>" class="btn">Return to Booking Form</a>
+            <?php if ($table): ?>
+                <?php if ($date): ?>
+                    <a href="booking.php?step=3&table=<?php echo urlencode($table); ?>&date=<?php echo urlencode($date); ?>" class="btn">Return to Booking Form</a>
+                <?php else: ?>
+                    <a href="booking.php?step=2&table=<?php echo urlencode($table); ?>" class="btn">Return to Date Selection</a>
+                <?php endif; ?>
             <?php else: ?>
-                <a href="booking.php" class="btn">Return to Booking Form</a>
+                <a href="booking.php?step=1" class="btn">Return to Table Selection</a>
             <?php endif; ?>
             <a href="index.php" class="btn btn-secondary">Return to Home</a>
         </div>
