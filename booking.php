@@ -11,20 +11,43 @@ $busyTables = [];
 $selected_date = $_GET['date'] ?? '';
 $selected_time = $_GET['time'] ?? '';
 
-if ($selected_date && $selected_time) {
-    $res = mysqli_query(
-        $conn,
-        "SELECT table_number, table_type FROM bookings
-         WHERE booking_date = '" . mysqli_real_escape_string($conn, $selected_date) . "'
-         AND booking_time = '" . mysqli_real_escape_string($conn, $selected_time) . "'"
-    );
-    
-    if ($res) {
-        while ($row = mysqli_fetch_assoc($res)) {
-            $busyTables[] = [
-                'number' => intval($row['table_number']),
-                'type' => $row['table_type']
-            ];
+// If date is selected, check for reservations on that date
+if ($selected_date) {
+    if ($selected_time) {
+        // Check for exact date and time match using prepared statement
+        $check_sql = "SELECT table_number, table_type FROM bookings
+                      WHERE booking_date = ? AND booking_time = ?";
+        $check_stmt = mysqli_prepare($conn, $check_sql);
+        if ($check_stmt) {
+            mysqli_stmt_bind_param($check_stmt, "ss", $selected_date, $selected_time);
+            mysqli_stmt_execute($check_stmt);
+            $res = mysqli_stmt_get_result($check_stmt);
+            
+            while ($row = mysqli_fetch_assoc($res)) {
+                $busyTables[] = [
+                    'number' => intval($row['table_number']),
+                    'type' => $row['table_type']
+                ];
+            }
+            mysqli_stmt_close($check_stmt);
+        }
+    } else {
+        // If only date is selected, show all tables reserved for that date (any time)
+        $check_sql = "SELECT table_number, table_type FROM bookings
+                      WHERE booking_date = ?";
+        $check_stmt = mysqli_prepare($conn, $check_sql);
+        if ($check_stmt) {
+            mysqli_stmt_bind_param($check_stmt, "s", $selected_date);
+            mysqli_stmt_execute($check_stmt);
+            $res = mysqli_stmt_get_result($check_stmt);
+            
+            while ($row = mysqli_fetch_assoc($res)) {
+                $busyTables[] = [
+                    'number' => intval($row['table_number']),
+                    'type' => $row['table_type']
+                ];
+            }
+            mysqli_stmt_close($check_stmt);
         }
     }
 }
@@ -119,6 +142,7 @@ include "includes/header.php";
             <input 
                 type="date" 
                 name="date" 
+                id="booking_date"
                 required 
                 onchange="reloadPage()"
                 value="<?php echo htmlspecialchars($selected_date ?: ($form_data['date'] ?? '')); ?>"
@@ -128,10 +152,17 @@ include "includes/header.php";
             <input 
                 type="time" 
                 name="time" 
+                id="booking_time"
                 required 
                 onchange="reloadPage()"
                 value="<?php echo htmlspecialchars($selected_time ?: ($form_data['time'] ?? '')); ?>"
             >
+            
+            <?php if ($selected_date && !$selected_time): ?>
+                <p style="color: #f5a623; font-size: 12px; margin-top: -10px; margin-bottom: 10px;">
+                    ⚠️ Please select a time to see table availability for specific time slots.
+                </p>
+            <?php endif; ?>
             
             <input 
                 type="number" 
@@ -228,8 +259,13 @@ const selectedTime = <?php echo json_encode($selected_time); ?>;
 function reloadPage() {
     const d = document.querySelector('input[name="date"]').value;
     const t = document.querySelector('input[name="time"]').value;
-    if (d && t) {
-        window.location.href = `booking.php?date=${d}&time=${t}`;
+    // Reload when date is selected (even without time)
+    if (d) {
+        if (t) {
+            window.location.href = `booking.php?date=${d}&time=${t}`;
+        } else {
+            window.location.href = `booking.php?date=${d}`;
+        }
     }
 }
 
@@ -256,6 +292,8 @@ function selectTable(element) {
 document.getElementById('bookingForm').addEventListener('submit', function(e) {
     const tableNumber = document.getElementById('table_number').value;
     const tableType = document.getElementById('table_type').value;
+    const bookingDate = document.getElementById('booking_date').value;
+    const bookingTime = document.getElementById('booking_time').value;
     
     if (!tableNumber || !tableType) {
         e.preventDefault();
@@ -263,10 +301,16 @@ document.getElementById('bookingForm').addEventListener('submit', function(e) {
         return false;
     }
     
+    if (!bookingDate || !bookingTime) {
+        e.preventDefault();
+        alert('Please select both date and time for your booking.');
+        return false;
+    }
+    
     // Check if selected table is busy
     if (busyTables.includes(parseInt(tableNumber))) {
         e.preventDefault();
-        alert('This table is already reserved. Please select another table.');
+        alert('This table is already reserved for the selected date and time. Please select another table.');
         return false;
     }
 });
