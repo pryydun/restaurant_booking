@@ -1,25 +1,7 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-    <meta charset="UTF-8">
-    <title>Restaurant</title>
-    <link rel="stylesheet" href="css/style.css">
-</head>
-<body>
-
-<header>
- <div class="logo">
-    <img src="img/44.png" alt="SMOKED logo">
-    <span>SMOKED</span>
-</div>
-
-
-    <nav>
-        <a href="index.php">Home</a>
-        <a href="booking.php">Book a Table</a>
-        <a href="admin.php">Admin</a>
-    </nav>
-</header>
+<?php
+$page_title = "Restaurant";
+include "includes/header.php";
+?>
 
 <section class="hero">
     <div class="hero-text">
@@ -31,5 +13,4 @@
     </div>
 </section>
 
-</body>
-</html>
+<?php include "includes/footer.php"; ?>

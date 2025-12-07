@@ -1,0 +1,41 @@
+# Apache Configuration for Restaurant Booking System
+
+# Prevent direct access to includes directory
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Block direct access to includes directory
+    RewriteRule ^includes/ - [F,L]
+    
+    # Block access to sensitive files
+    <FilesMatch "\.(sql|md|gitignore)$">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+</IfModule>
+
+# Security Headers
+<IfModule mod_headers.c>
+    # Prevent clickjacking
+    Header set X-Frame-Options "SAMEORIGIN"
+    
+    # XSS Protection
+    Header set X-XSS-Protection "1; mode=block"
+    
+    # Prevent MIME type sniffing
+    Header set X-Content-Type-Options "nosniff"
+</IfModule>
+
+# PHP Settings (if allowed)
+<IfModule mod_php7.c>
+    php_flag display_errors Off
+    php_flag log_errors On
+</IfModule>
+
+# Disable directory browsing
+Options -Indexes
+
+# Custom error pages (optional)
+# ErrorDocument 404 /404.php
+# ErrorDocument 500 /500.php
+

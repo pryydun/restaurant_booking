@@ -1,27 +1,7 @@
 <?php
 session_start();
-include "db.php";
-
-// Helper function to sanitize input
-function sanitize_input($data) {
-    $data = trim($data);
-    $data = stripslashes($data);
-    $data = htmlspecialchars($data);
-    return $data;
-}
-
-// Helper function to validate email
-function validate_email($email) {
-    return filter_var($email, FILTER_VALIDATE_EMAIL);
-}
-
-// Helper function to validate phone
-function validate_phone($phone) {
-    // Remove all non-digit characters
-    $phone = preg_replace('/[^0-9]/', '', $phone);
-    // Check if it has at least 10 digits
-    return strlen($phone) >= 10;
-}
+require_once "includes/db.php";
+require_once "includes/functions.php";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $errors = [];

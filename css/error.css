@@ -1,0 +1,96 @@
+/* ===== ERROR PAGE STYLES ===== */
+
+.error-page {
+    min-height: 100vh;
+    background:
+        linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)),
+        url("../img/bg.jpg") center / cover no-repeat;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 120px 20px 40px;
+}
+
+.error-container {
+    max-width: 600px;
+    width: 100%;
+    background: rgba(0,0,0,0.85);
+    padding: 40px;
+    border-radius: 10px;
+    color: #fff;
+    text-align: center;
+}
+
+.error-icon {
+    font-size: 80px;
+    color: #e74c3c;
+    margin-bottom: 20px;
+}
+
+.error-container h1 {
+    color: #e74c3c;
+    margin-bottom: 20px;
+    font-size: 32px;
+}
+
+.error-message {
+    background: rgba(231, 76, 60, 0.2);
+    border: 2px solid #e74c3c;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 30px 0;
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+.booking-info {
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+    text-align: left;
+}
+
+.booking-info h3 {
+    color: #f5a623;
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+.info-row {
+    padding: 8px 0;
+    color: rgba(255,255,255,0.8);
+}
+
+.actions {
+    margin-top: 30px;
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.btn {
+    display: inline-block;
+    padding: 12px 30px;
+    background: #1e90ff;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 5px;
+    font-weight: bold;
+    transition: background 0.3s ease;
+}
+
+.btn:hover {
+    background: #0f6fd6;
+}
+
+.btn-secondary {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.3);
+}
+
+.btn-secondary:hover {
+    background: rgba(255,255,255,0.2);
+}
+
