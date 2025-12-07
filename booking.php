@@ -1,31 +1,114 @@
 <?php
+session_start();
 include "db.php";
 
-$busyTables = [];
-
-if (isset($_GET['date']) && isset($_GET['time'])) {
-    $date = $_GET['date'];
-    $time = $_GET['time'];
-
-    $res = mysqli_query(
-        $conn,
-        "SELECT table_number FROM bookings
-         WHERE booking_date='$date'
-         AND booking_time='$time'"
-    );
-
-    while ($row = mysqli_fetch_assoc($res)) {
-        $busyTables[] = intval($row['table_number']);
+// Get table configuration from database
+$table_configs = [];
+$config_query = "SELECT table_type, table_count FROM tables_config";
+$config_result = mysqli_query($conn, $config_query);
+if ($config_result) {
+    while ($row = mysqli_fetch_assoc($config_result)) {
+        $table_configs[$row['table_type']] = intval($row['table_count']);
     }
 }
+
+// Initialize default values if table doesn't exist or is empty
+if (empty($table_configs)) {
+    $default_configs = [
+        ['2_seats', 6, 'Tables for 2 persons'],
+        ['more_than_2', 4, 'Tables for more than 2 persons'],
+        ['bar', 5, 'Seats near the bar']
+    ];
+    
+    foreach ($default_configs as $config) {
+        $init_sql = "INSERT IGNORE INTO tables_config (table_type, table_count, description) VALUES (?, ?, ?)";
+        $init_stmt = mysqli_prepare($conn, $init_sql);
+        if ($init_stmt) {
+            mysqli_stmt_bind_param($init_stmt, "sis", $config[0], $config[1], $config[2]);
+            mysqli_stmt_execute($init_stmt);
+            mysqli_stmt_close($init_stmt);
+            $table_configs[$config[0]] = $config[1];
+        }
+    }
+}
+
+// Default values if not in database
+$table_counts = [
+    '2_seats' => $table_configs['2_seats'] ?? 6,
+    'more_than_2' => $table_configs['more_than_2'] ?? 4,
+    'bar' => $table_configs['bar'] ?? 5
+];
+
+// Get busy tables for selected date/time
+$busyTables = [];
+$selected_date = $_GET['date'] ?? '';
+$selected_time = $_GET['time'] ?? '';
+
+if ($selected_date && $selected_time) {
+    $res = mysqli_query(
+        $conn,
+        "SELECT table_number, table_type FROM bookings
+         WHERE booking_date = '" . mysqli_real_escape_string($conn, $selected_date) . "'
+         AND booking_time = '" . mysqli_real_escape_string($conn, $selected_time) . "'"
+    );
+    
+    if ($res) {
+        while ($row = mysqli_fetch_assoc($res)) {
+            $busyTables[] = [
+                'number' => intval($row['table_number']),
+                'type' => $row['table_type']
+            ];
+        }
+    }
+}
+
+// Get form data from session if available (for error display)
+$form_data = $_SESSION['booking_form_data'] ?? [];
+$errors = $_SESSION['booking_errors'] ?? [];
+unset($_SESSION['booking_form_data']);
+unset($_SESSION['booking_errors']);
+
+// Generate table IDs
+$tables = [];
+$table_id = 1;
+
+// 2-seat tables
+for ($i = 0; $i < $table_counts['2_seats']; $i++) {
+    $tables[] = [
+        'id' => $table_id++,
+        'type' => '2_seats',
+        'label' => '2'
+    ];
+}
+
+// More than 2 seats tables
+for ($i = 0; $i < $table_counts['more_than_2']; $i++) {
+    $tables[] = [
+        'id' => $table_id++,
+        'type' => 'more_than_2',
+        'label' => '4+'
+    ];
+}
+
+// Bar seats
+for ($i = 0; $i < $table_counts['bar']; $i++) {
+    $tables[] = [
+        'id' => $table_id++,
+        'type' => 'bar',
+        'label' => 'BAR'
+    ];
+}
+
+// Check which tables are busy
+$busy_table_numbers = array_column($busyTables, 'number');
 ?>
 <!DOCTYPE html>
-<html lang="uk">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Book a Table</title>
 <link rel="stylesheet" href="css/style.css">
-
 <style>
 /* ===== SAME BACKGROUND AS HOME ===== */
 .booking-page {
@@ -36,35 +119,70 @@ if (isset($_GET['date']) && isset($_GET['time'])) {
     display: flex;
     justify-content: center;
     align-items: center;
+    padding: 120px 20px 40px;
 }
 
 /* ===== CONTAINER ===== */
 .booking-container {
-    width: 900px;
-    background: rgba(0,0,0,0.75);
+    width: 100%;
+    max-width: 1200px;
+    background: rgba(0,0,0,0.85);
     display: flex;
     gap: 40px;
     padding: 40px;
     border-radius: 10px;
     color: #fff;
+    flex-wrap: wrap;
 }
 
 /* ===== LEFT (FORM) ===== */
 .booking-form {
-    width: 45%;
+    flex: 1;
+    min-width: 300px;
 }
 
 .booking-form h2 {
     margin-bottom: 20px;
+    color: #f5a623;
+}
+
+.booking-form .error-message {
+    background: rgba(231, 76, 60, 0.2);
+    border: 1px solid #e74c3c;
+    color: #ff6b6b;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
+.booking-form .error-message ul {
+    margin: 5px 0 0 20px;
+    padding: 0;
 }
 
 .booking-form input,
+.booking-form select,
 .booking-form button {
     width: 100%;
     padding: 12px;
     margin-bottom: 12px;
     border-radius: 4px;
-    border: none;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    font-size: 14px;
+}
+
+.booking-form input::placeholder {
+    color: rgba(255,255,255,0.6);
+}
+
+.booking-form input:focus,
+.booking-form select:focus {
+    outline: none;
+    border-color: #1e90ff;
+    background: rgba(255,255,255,0.15);
 }
 
 .booking-form button {
@@ -72,111 +190,320 @@ if (isset($_GET['date']) && isset($_GET['time'])) {
     color: white;
     font-weight: bold;
     cursor: pointer;
+    border: none;
+    margin-top: 10px;
+    transition: background 0.3s ease;
+}
+
+.booking-form button:hover {
+    background: #0f6fd6;
+}
+
+.booking-form button:disabled {
+    background: #555;
+    cursor: not-allowed;
 }
 
 /* ===== RIGHT (HALL) ===== */
 .hall-wrapper {
-    width: 55%;
+    flex: 1.5;
+    min-width: 400px;
 }
 
 .hall-wrapper h3 {
     margin-bottom: 15px;
+    color: #f5a623;
+}
+
+.hall-section {
+    margin-bottom: 30px;
+}
+
+.hall-section h4 {
+    margin-bottom: 10px;
+    font-size: 14px;
+    color: rgba(255,255,255,0.8);
+    text-transform: uppercase;
+    letter-spacing: 1px;
 }
 
 /* HALL */
 .hall {
     position: relative;
     width: 100%;
-    height: 320px;
-    background: rgba(255,255,255,0.12);
+    min-height: 500px;
+    background: rgba(255,255,255,0.08);
     border-radius: 10px;
+    padding: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+    align-items: flex-start;
 }
 
 /* TABLE */
-.table {
-    position: absolute;
-    width: 70px;
-    height: 70px;
-    background: #2ecc71;
-    color: #fff;
-    font-weight: bold;
+.table-wrapper {
+    position: relative;
+    width: 80px;
+    height: 80px;
     display: flex;
     justify-content: center;
     align-items: center;
-    border-radius: 50%;
+}
+
+.table {
+    width: 100%;
+    height: 100%;
     cursor: pointer;
+    transition: transform 0.2s ease, filter 0.2s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
-/* STATES */
-.table.selected { background: #3498db; }
+.table svg {
+    width: 100%;
+    height: 100%;
+    stroke: #2ecc71;
+    fill: none;
+}
+
+.table:hover:not(.busy):not(.selected) {
+    transform: scale(1.1);
+    filter: brightness(1.2);
+}
+
+.table.selected svg {
+    stroke: #3498db;
+    filter: drop-shadow(0 0 8px #3498db);
+}
+
 .table.busy {
-    background: #e74c3c;
     cursor: not-allowed;
-    opacity: 0.8;
+    opacity: 0.6;
 }
 
-/* POSITIONS */
-.t1 { top: 40px; left: 60px; }
-.t2 { top: 40px; right: 60px; }
-.t3 { top: 120px; left: 200px; }
-.t4 { bottom: 40px; left: 60px; }
-.t5 { bottom: 40px; right: 60px; }
-.t6 { bottom: 120px; right: 200px; }
+.table.busy svg {
+    stroke: #e74c3c;
+}
+
+.table-label {
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: rgba(255,255,255,0.9);
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.table.busy .table-label {
+    color: #e74c3c;
+}
+
+.table.selected .table-label {
+    color: #3498db;
+}
+
+/* Reserved overlay */
+.table-reserved-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.table.busy .table-reserved-overlay svg {
+    stroke: #e74c3c;
+    fill: rgba(231, 76, 60, 0.3);
+}
+
+/* Legend */
+.legend {
+    margin-top: 20px;
+    padding: 15px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 5px;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.legend-item svg {
+    width: 20px;
+    height: 20px;
+}
+
+.legend-available svg { stroke: #2ecc71; }
+.legend-selected svg { stroke: #3498db; }
+.legend-busy svg { stroke: #e74c3c; }
 </style>
-
-<script>
-const busyTables = <?= json_encode($busyTables); ?>;
-</script>
 </head>
-
 <body>
 
 <div class="booking-page">
-
-<div class="booking-container">
-
-<!-- LEFT -->
-<form class="booking-form" action="book.php" method="post">
-
-<h2>Book a Table</h2>
-
-<input name="name" placeholder="Your name" required>
-<input name="phone" placeholder="Phone" required>
-
-<input type="date" name="date" required onchange="reloadPage()"
-value="<?= $_GET['date'] ?? '' ?>">
-
-<input type="time" name="time" required onchange="reloadPage()"
-value="<?= $_GET['time'] ?? '' ?>">
-
-<input type="number" name="guests" placeholder="Guests" required>
-
-<input type="hidden" name="table_number" id="table_number" required>
-
-<button type="submit">CONFIRM BOOKING</button>
-
-</form>
-
-<!-- RIGHT -->
-<div class="hall-wrapper">
-
-<h3>Restaurant Hall</h3>
-
-<div class="hall">
-    <div class="table t1" data-table="1">1</div>
-    <div class="table t2" data-table="2">2</div>
-    <div class="table t3" data-table="3">3</div>
-    <div class="table t4" data-table="4">4</div>
-    <div class="table t5" data-table="5">5</div>
-    <div class="table t6" data-table="6">6</div>
-</div>
-
-</div>
-
-</div>
+    <div class="booking-container">
+        <!-- LEFT FORM -->
+        <form class="booking-form" action="book.php" method="post" id="bookingForm">
+            <h2>Book a Table</h2>
+            
+            <?php if (!empty($errors)): ?>
+                <div class="error-message">
+                    <strong>Please fix the following errors:</strong>
+                    <ul>
+                        <?php foreach ($errors as $error): ?>
+                            <li><?php echo htmlspecialchars($error); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
+            
+            <input 
+                type="text" 
+                name="name" 
+                placeholder="Your full name *" 
+                required
+                value="<?php echo htmlspecialchars($form_data['name'] ?? ''); ?>"
+                minlength="2"
+            >
+            
+            <input 
+                type="tel" 
+                name="phone" 
+                placeholder="Phone number *" 
+                required
+                value="<?php echo htmlspecialchars($form_data['phone'] ?? ''); ?>"
+                pattern="[0-9+\-\s()]+"
+            >
+            
+            <input 
+                type="email" 
+                name="email" 
+                placeholder="Email (optional)"
+                value="<?php echo htmlspecialchars($form_data['email'] ?? ''); ?>"
+            >
+            
+            <input 
+                type="date" 
+                name="date" 
+                required 
+                onchange="reloadPage()"
+                value="<?php echo htmlspecialchars($selected_date ?: ($form_data['date'] ?? '')); ?>"
+                min="<?php echo date('Y-m-d'); ?>"
+            >
+            
+            <input 
+                type="time" 
+                name="time" 
+                required 
+                onchange="reloadPage()"
+                value="<?php echo htmlspecialchars($selected_time ?: ($form_data['time'] ?? '')); ?>"
+            >
+            
+            <input 
+                type="number" 
+                name="guests" 
+                placeholder="Number of guests *" 
+                required
+                min="1"
+                max="20"
+                value="<?php echo htmlspecialchars($form_data['guests'] ?? ''); ?>"
+            >
+            
+            <input type="hidden" name="table_number" id="table_number" required>
+            <input type="hidden" name="table_type" id="table_type" required>
+            
+            <button type="submit" id="submitBtn" disabled>CONFIRM BOOKING</button>
+            
+            <p style="margin-top: 15px; font-size: 12px; color: rgba(255,255,255,0.6);">
+                * Required fields
+            </p>
+        </form>
+        
+        <!-- RIGHT HALL -->
+        <div class="hall-wrapper">
+            <h3>Restaurant Hall</h3>
+            
+            <div class="hall" id="hall">
+                <?php 
+                $table_index = 0;
+                foreach ($tables as $table): 
+                    $is_busy = in_array($table['id'], $busy_table_numbers);
+                    $table_index++;
+                ?>
+                    <div class="table-wrapper">
+                        <div 
+                            class="table <?php echo $is_busy ? 'busy' : ''; ?>" 
+                            data-table="<?php echo $table['id']; ?>"
+                            data-type="<?php echo $table['type']; ?>"
+                            <?php if (!$is_busy): ?>onclick="selectTable(this)"<?php endif; ?>
+                        >
+                            <?php if ($is_busy): ?>
+                                <!-- Reserved overlay -->
+                                <div class="table-reserved-overlay">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M4 19L12 5l8 14H4z" />
+                                        <polyline points="9 14 11 16 15 11" />
+                                    </svg>
+                                </div>
+                            <?php endif; ?>
+                            
+                            <?php 
+                            if ($table['type'] == '2_seats') {
+                                echo '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13h16" /><path d="M12 13v8" /><path d="M8 21h8" /><path d="M5 13V8a2 2 0 0 0-2-2H2" /><path d="M2 13v8" /><path d="M5 13v8" /><path d="M19 13V8a2 2 0 0 1 2-2h1" /><path d="M22 13v8" /><path d="M19 13v8" /></svg>';
+                            } elseif ($table['type'] == 'more_than_2') {
+                                echo '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="6" /><path d="M10 3a2 2 0 0 1 4 0" /><path d="M10 3v3" /><path d="M14 3v3" /><path d="M10 21a2 2 0 0 0 4 0" /><path d="M10 18v3" /><path d="M14 18v3" /><path d="M3 10a2 2 0 0 0 0 4" /><path d="M3 10h3" /><path d="M3 14h3" /><path d="M21 10a2 2 0 0 1 0 4" /><path d="M18 10h3" /><path d="M18 14h3" /></svg>';
+                            } else {
+                                echo '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12" /><path d="M12 8v13" /><path d="M9 21h6" /><path d="M16 12h4" /><path d="M16 12v9" /><path d="M20 12v9" /><path d="M16 17h4" /><rect x="9" y="5" width="6" height="3" rx="0.5" /><polyline points="10.5 6.5 11.5 7.5 13.5 5.5" /></svg>';
+                            }
+                            ?>
+                        </div>
+                        <div class="table-label"><?php echo $table['id']; ?></div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            
+            <div class="legend">
+                <div class="legend-item legend-available">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="6"/>
+                    </svg>
+                    <span>Available</span>
+                </div>
+                <div class="legend-item legend-selected">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="6"/>
+                    </svg>
+                    <span>Selected</span>
+                </div>
+                <div class="legend-item legend-busy">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="6"/>
+                    </svg>
+                    <span>Reserved</span>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
+const busyTables = <?php echo json_encode($busy_table_numbers); ?>;
+const selectedDate = <?php echo json_encode($selected_date); ?>;
+const selectedTime = <?php echo json_encode($selected_time); ?>;
+
 function reloadPage() {
     const d = document.querySelector('input[name="date"]').value;
     const t = document.querySelector('input[name="time"]').value;
@@ -185,28 +512,53 @@ function reloadPage() {
     }
 }
 
-/* TABLE LOGIC */
-const tables = document.querySelectorAll('.table');
-const input = document.getElementById('table_number');
+function selectTable(element) {
+    // Remove previous selection
+    document.querySelectorAll('.table').forEach(t => {
+        if (!t.classList.contains('busy')) {
+            t.classList.remove('selected');
+        }
+    });
+    
+    // Add selection to clicked table
+    element.classList.add('selected');
+    
+    // Set form values
+    document.getElementById('table_number').value = element.dataset.table;
+    document.getElementById('table_type').value = element.dataset.type;
+    
+    // Enable submit button
+    document.getElementById('submitBtn').disabled = false;
+}
 
-tables.forEach(t => {
-    const num = parseInt(t.dataset.table);
-
-    if (busyTables.includes(num)) {
-        t.classList.add('busy');
-        t.innerText = "X";
+// Form validation
+document.getElementById('bookingForm').addEventListener('submit', function(e) {
+    const tableNumber = document.getElementById('table_number').value;
+    const tableType = document.getElementById('table_type').value;
+    
+    if (!tableNumber || !tableType) {
+        e.preventDefault();
+        alert('Please select a table from the hall layout.');
+        return false;
     }
+    
+    // Check if selected table is busy
+    if (busyTables.includes(parseInt(tableNumber))) {
+        e.preventDefault();
+        alert('This table is already reserved. Please select another table.');
+        return false;
+    }
+});
 
-    t.onclick = () => {
-        if (t.classList.contains('busy')) return;
-        tables.forEach(el => el.classList.remove('selected'));
-        t.classList.add('selected');
-        input.value = num;
-    };
+// Disable busy tables on click
+document.querySelectorAll('.table.busy').forEach(table => {
+    table.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        alert('This table is already reserved for the selected date and time.');
+    });
 });
 </script>
 
 </body>
 </html>
-
-

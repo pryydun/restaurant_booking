@@ -15,10 +15,9 @@
 
 
     <nav>
-        <a href="#">Home</a>
-        <a href="#">About</a>
-        <a href="#">Menu</a>
-        <a href="#">Check Status</a>
+        <a href="index.php">Home</a>
+        <a href="booking.php">Book a Table</a>
+        <a href="admin.php">Admin</a>
     </nav>
 </header>
 
